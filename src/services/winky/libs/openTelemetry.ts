@@ -508,6 +508,9 @@ export const pushWinkyLogToOtelCollector = async (
   env: Record<string, any>,
   log: Record<string, any>
 ) => {
+  if (Environment(env).FETCH_SETTINGS_FROM_FILE === 'true') {
+    return true;
+  }
   try {
     const startTime = new Date(log.metrics.created_at).getTime() * 1e6;
     const endTime = startTime + (log.metrics.response_time || 0) * 1e6;

@@ -16,6 +16,9 @@ export async function logAnalyticsToControlPlane(
   analyticsObjects: AnalyticsLogObjectV2[],
   analyticOptions: AnalyticsOptions
 ) {
+  if (Environment(env).FETCH_SETTINGS_FROM_FILE === 'true') {
+    return true;
+  }
   try {
     const batcher = AnalyticsBatcher.getInstance();
     await batcher.addToBatch(analyticOptions.table, analyticsObjects);
@@ -35,6 +38,9 @@ export async function pushToControlPlane(
   table: string,
   insertArray: AnalyticsLogObjectV2[]
 ) {
+  if (Environment(env).FETCH_SETTINGS_FROM_FILE === 'true') {
+    return true;
+  }
   if (isPrivateDeployment) {
     const url = `${Environment(env).ALBUS_BASEPATH}/v1/analytics/enterprise/analytics`;
     const body = JSON.stringify({
@@ -96,6 +102,9 @@ export async function uploadLogsToControlPlane(
   logOptions: LogOptions,
   apmOptions: LogStoreApmOptions
 ) {
+  if (Environment(env).FETCH_SETTINGS_FROM_FILE === 'true') {
+    return;
+  }
   const url = `${Environment(env).ALBUS_BASEPATH}/v1/logs/enterprise/logs?organisation_id=${logOptions.organisationId}`;
   let isSuccess = true;
   let errorMessage = '';

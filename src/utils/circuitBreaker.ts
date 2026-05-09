@@ -68,17 +68,19 @@ export const extractCircuitBreakerConfigs = (
       currentCBConfig = inheritedCBConfig;
     }
 
-    // If this is a target (has virtual_key) or a strategy with targets
-    if (currentConfig.virtual_key) {
-      if (currentCBConfig) {
-        pathStatusMap[currentPath] = {
-          path: currentPath,
-          is_open: false,
-          failure_count: 0,
-          success_count: 0,
-          cb_config: currentCBConfig,
-        };
-      }
+    const hasNestedTargets = currentConfig.targets?.length > 0;
+    const isLeafTarget =
+      !!currentConfig.virtual_key ||
+      (!!currentConfig.provider && !hasNestedTargets);
+
+    if (isLeafTarget && currentCBConfig) {
+      pathStatusMap[currentPath] = {
+        path: currentPath,
+        is_open: false,
+        failure_count: 0,
+        success_count: 0,
+        cb_config: currentCBConfig,
+      };
     }
 
     // If this is a conditional strategy, ignore circuit breaker
@@ -224,7 +226,9 @@ export const getCircuitBreakerMappedConfig = (
         // Update target's is_open status
         if (pathStatusMap[targetPath]) {
           target.is_open = pathStatusMap[targetPath].is_open || targetOpen;
+          target.isOpen = target.is_open;
           target.cb_config = pathStatusMap[targetPath].cb_config;
+          target.cbConfig = target.cb_config;
         }
 
         if (!target.is_open) {
@@ -237,11 +241,14 @@ export const getCircuitBreakerMappedConfig = (
     if (pathStatusMap[currentPath]) {
       // If this level has its own circuit breaker status, use it
       currentConfig.is_open = pathStatusMap[currentPath].is_open;
+      currentConfig.isOpen = currentConfig.is_open;
       currentConfig.cb_config = pathStatusMap[currentPath].cb_config;
+      currentConfig.cbConfig = currentConfig.cb_config;
 
       // If all targets are open, mark strategy as open
       if (hasTargets && allTargetsOpen) {
         currentConfig.is_open = true;
+        currentConfig.isOpen = true;
       }
 
       return currentConfig.is_open;
@@ -264,7 +271,8 @@ export const recordCircuitBreakerFailure = async (
   configId: string,
   cbConfig: CircuitBreakerConfig,
   targetPath: string,
-  errorStatusCode: number
+  errorStatusCode: number,
+  retryAfterHeader?: string | null
 ): Promise<void> => {
   const failureStatusCodes = getCircuitBreakerStatusCodes(cbConfig);
   if (!isCircuitBreakerFailure(errorStatusCode, failureStatusCodes)) {
@@ -272,10 +280,18 @@ export const recordCircuitBreakerFailure = async (
   }
 
   const now = Date.now();
+  const retryAfterMs = parseRetryAfterMs(retryAfterHeader);
+  const failureTimestamp = retryAfterMs
+    ? now - cbConfig.cooldown_interval + retryAfterMs
+    : now;
 
   try {
     const cache = requestCache(cfEnv);
-    await cache.recordCircuitBreakerFailure(configId, targetPath, now);
+    await cache.recordCircuitBreakerFailure(
+      configId,
+      targetPath,
+      failureTimestamp
+    );
   } catch (error: any) {
     logger.error({
       message: `Error recording circuit breaker failure for ${targetPath}: ${error.message}`,
@@ -329,7 +345,8 @@ export async function handleCircuitBreakerResponse(
       configId,
       cbConfig,
       targetPath,
-      response.status
+      response.status,
+      response.headers.get('Retry-After')
     );
   }
 }
@@ -366,6 +383,19 @@ export async function destroyCircuitBreakerConfig(
     });
     return false;
   }
+}
+
+function parseRetryAfterMs(retryAfterHeader?: string | null): number | null {
+  if (!retryAfterHeader) {
+    return null;
+  }
+
+  const seconds = Number(retryAfterHeader);
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return null;
+  }
+
+  return seconds * 1000;
 }
 
 function getCircuitBreakerStatusCodes(

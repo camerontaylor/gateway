@@ -32,6 +32,8 @@ import {
   AdapterContext,
 } from './adapterUtils';
 
+const GATEWAY_EXCEPTION_HEADER = 'x-portkey-gateway-exception';
+
 /**
  * Constructs the request options for the API call.
  *
@@ -912,16 +914,7 @@ export async function tryTargetsRecursively(
         );
 
         const codes = currentTarget.strategy?.onStatusCodes;
-        const gatewayException =
-          response?.headers.get('x-portkey-gateway-exception') === 'true';
-        if (
-          // If onStatusCodes is provided, and the response status is not in the list
-          (Array.isArray(codes) && !codes.includes(response?.status)) ||
-          // If onStatusCodes is not provided, and the response is ok
-          (!codes && response?.ok) ||
-          // If the response is a gateway exception
-          gatewayException
-        ) {
+        if (shouldStopFallback(response, codes)) {
           // Skip the fallback
           break;
         }
@@ -1117,8 +1110,8 @@ export async function tryTargetsRecursively(
             status: error instanceof GatewayError ? error.status : 500,
             headers: {
               'content-type': 'application/json',
-              // Add this header so that the fallback loop can be interrupted if its an exception.
-              'x-portkey-gateway-exception': 'true',
+              // Mark internally generated gateway exceptions for downstream handling.
+              [GATEWAY_EXCEPTION_HEADER]: 'true',
             },
           }
         );
@@ -1127,6 +1120,17 @@ export async function tryTargetsRecursively(
   }
 
   return response!;
+}
+
+export function shouldStopFallback(
+  response: Response | undefined,
+  onStatusCodes: number[] | undefined
+) {
+  if (Array.isArray(onStatusCodes)) {
+    return response === undefined || !onStatusCodes.includes(response.status);
+  }
+
+  return Boolean(response?.ok);
 }
 
 /**

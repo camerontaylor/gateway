@@ -43,3 +43,13 @@ export function supportsMessagesApiNatively(
 export { transformMessagesToChatCompletions } from './requestTransform';
 export { transformChatCompletionsToMessages } from './responseTransform';
 export { transformStreamChunk, createStreamState } from './streamTransform';
+export {
+  maybeTranslateAnthropicInBandError,
+  maybeTranslateAnthropicStreamingResponse,
+  maybeTranslateAnthropicNonStreamingResponse,
+  parseAnthropicErrorEvent,
+  mapAnthropicErrorToHttpStatus,
+  parseResetTimestampFromMessage,
+  computeRetryAfterSeconds,
+} from './anthropicErrorDetect';
+export type { AnthropicErrorEvent } from './anthropicErrorDetect';

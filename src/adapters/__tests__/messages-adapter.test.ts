@@ -304,6 +304,20 @@ describe('Messages → Chat Completions Request Transform', () => {
     });
   });
 
+  test('passes through OpenRouter routing parameters', () => {
+    const result = transformMessagesToChatCompletions({
+      ...fixtures.requests.simple(),
+      provider: { only: ['Cerebras'], allow_fallbacks: false },
+      usage: { include: true },
+    });
+
+    expect(result.provider).toEqual({
+      only: ['Cerebras'],
+      allow_fallbacks: false,
+    });
+    expect(result.usage).toEqual({ include: true });
+  });
+
   describe('tool_choice variants', () => {
     test.each([
       [{ type: 'auto' }, 'auto'],
@@ -489,7 +503,7 @@ describe('Round-trip Transformation', () => {
 
     // Verify key data preserved
     expect(chatReq.model).toBe(original.model);
-    expect(chatReq.max_tokens).toBe(original.max_tokens);
+    expect(chatReq.max_completion_tokens).toBe(original.max_tokens);
     expect(chatReq.messages![0].content).toBe(original.system);
     expect(chatReq.messages![1].content).toBe(original.messages[0].content);
   });

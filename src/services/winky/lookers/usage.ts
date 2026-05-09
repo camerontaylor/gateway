@@ -11,6 +11,7 @@ import {
   AnalyticsLogObject,
   VirtualKeyDetails,
 } from '../../../middlewares/portkey/types';
+import { Environment } from '../../../utils/env';
 
 /**
  * Single entry point for handling usage tracking
@@ -21,6 +22,7 @@ export async function handlePostRequestUsage(
   chLogObject: AnalyticsLogObject,
   logUsage: boolean
 ) {
+  if (Environment(env).FETCH_SETTINGS_FROM_FILE === 'true') return;
   if (!logUsage) return;
   // Skip if cache hit
   const isCacheHit = ['HIT', 'SEMANTIC HIT'].includes(

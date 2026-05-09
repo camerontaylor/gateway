@@ -1,8 +1,10 @@
 import fs from 'fs';
 import { getRuntimeKey } from 'hono/adapter';
+import os from 'os';
 import path from 'path';
 
 const isNodeInstance = getRuntimeKey() == 'node';
+const isLocalConfigEnabled = process.env.FETCH_SETTINGS_FROM_FILE === 'true';
 
 export function getValueOrFileContents(value?: string, ignore?: boolean) {
   if (!value || ignore) return value;
@@ -12,10 +14,13 @@ export function getValueOrFileContents(value?: string, ignore?: boolean) {
     if (
       value.startsWith('/') ||
       value.startsWith('./') ||
-      value.startsWith('../')
+      value.startsWith('../') ||
+      value.startsWith('~/')
     ) {
       // Resolve the path (handle relative paths)
-      const resolvedPath = path.resolve(value);
+      const resolvedPath = value.startsWith('~/')
+        ? path.resolve(os.homedir(), value.slice(2))
+        : path.resolve(value);
 
       // Check if file exists
       if (fs.existsSync(resolvedPath)) {
@@ -41,14 +46,20 @@ const nodeEnv = {
 
   SENTRY_DSN: getValueOrFileContents(process.env.SENTRY_DSN),
 
-  MONITOR_METRICS: getValueOrFileContents(process.env.MONITOR_METRICS),
+  MONITOR_METRICS:
+    getValueOrFileContents(process.env.MONITOR_METRICS) ||
+    (isLocalConfigEnabled ? 'false' : undefined),
   TEMPO_OTEL_HOST: getValueOrFileContents(process.env.TEMPO_OTEL_HOST),
-  ENABLE_TRACING: getValueOrFileContents(process.env.ENABLE_TRACING),
+  ENABLE_TRACING:
+    getValueOrFileContents(process.env.ENABLE_TRACING) ||
+    (isLocalConfigEnabled ? 'false' : undefined),
   ENABLE_LOKI: getValueOrFileContents(process.env.ENABLE_LOKI),
   LOKI_PUSH_ENABLED: getValueOrFileContents(process.env.LOKI_PUSH_ENABLED),
   LOKI_AUTH: getValueOrFileContents(process.env.LOKI_AUTH),
   LOKI_HOST: getValueOrFileContents(process.env.LOKI_HOST),
-  ENABLE_PROMETHEUS: getValueOrFileContents(process.env.ENABLE_PROMETHEUS),
+  ENABLE_PROMETHEUS:
+    getValueOrFileContents(process.env.ENABLE_PROMETHEUS) ||
+    (isLocalConfigEnabled ? 'false' : undefined),
   PROMETHEUS_GATEWAY_URL: getValueOrFileContents(
     process.env.PROMETHEUS_GATEWAY_URL
   ),
@@ -63,6 +74,9 @@ const nodeEnv = {
   GATEWAY_CACHE_MODE: getValueOrFileContents(process.env.GATEWAY_CACHE_MODE),
   PORTKEY_PROXY_URL: getValueOrFileContents(process.env.PORTKEY_PROXY_URL),
   PORTKEY_API_KEY: getValueOrFileContents(process.env.PORTKEY_API_KEY),
+  PORTKEY_LOCAL_API_KEY: getValueOrFileContents(
+    process.env.PORTKEY_LOCAL_API_KEY
+  ),
   GATEWAY_BASEPATH: getValueOrFileContents(process.env.GATEWAY_BASEPATH),
   CONTROL_PLANE_BASEPATH: getValueOrFileContents(
     process.env.CONTROL_PLANE_BASEPATH
@@ -429,7 +443,9 @@ const nodeEnv = {
     process.env.SEMANTIC_CACHE_EMBEDDING_DIMENSIONS
   ),
 
-  OTEL_PUSH_ENABLED: getValueOrFileContents(process.env.OTEL_PUSH_ENABLED),
+  OTEL_PUSH_ENABLED:
+    getValueOrFileContents(process.env.OTEL_PUSH_ENABLED) ||
+    (isLocalConfigEnabled ? 'false' : undefined),
   OTEL_ENDPOINT: getValueOrFileContents(process.env.OTEL_ENDPOINT),
   OTEL_EXPORTER_OTLP_HEADERS: getValueOrFileContents(
     process.env.OTEL_EXPORTER_OTLP_HEADERS
@@ -442,9 +458,10 @@ const nodeEnv = {
     process.env.OTEL_EXPORTER_OTLP_PROTOCOL
   ),
 
-  EXPERIMENTAL_GEN_AI_OTEL_PUSH_ENABLED: getValueOrFileContents(
-    process.env.EXPERIMENTAL_GEN_AI_OTEL_TRACES_ENABLED
-  ),
+  EXPERIMENTAL_GEN_AI_OTEL_PUSH_ENABLED:
+    getValueOrFileContents(
+      process.env.EXPERIMENTAL_GEN_AI_OTEL_TRACES_ENABLED
+    ) || (isLocalConfigEnabled ? 'false' : undefined),
   EXPERIMENTAL_GEN_AI_OTEL_EXPORTER_OTLP_ENDPOINT: getValueOrFileContents(
     process.env.EXPERIMENTAL_GEN_AI_OTEL_EXPORTER_OTLP_ENDPOINT
   ),

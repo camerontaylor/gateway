@@ -18,7 +18,9 @@ import {
   transformStreamChunk as messagesTransformStreamChunk,
   createStreamState as messagesCreateStreamState,
   supportsMessagesApiNatively,
+  maybeTranslateAnthropicInBandError,
 } from '../adapters/messages';
+import { ANTHROPIC } from '../globals';
 import {
   transformResponsesToChatCompletions,
   transformChatCompletionsToResponses,
@@ -140,14 +142,42 @@ export function applyAdapterRequestTransform(
 /**
  * If the adapter is active, transform the chatComplete-format response
  * back to the original API format (Messages or Responses).
- * For non-adapter requests this is a no-op passthrough.
+ * For non-adapter requests this is a no-op passthrough, except for native
+ * Anthropic Messages responses, which are scanned for in-band `event: error`
+ * frames so the fallback engine can route on them as HTTP errors.
  */
 export async function adaptResponse(
   response: Response,
   adapterCtx: AdapterContext,
   c: Context
 ): Promise<Response> {
-  if (!adapterCtx.isActive) return response;
+  if (!adapterCtx.isActive) {
+    if (
+      adapterCtx.originalFn === 'messages' &&
+      adapterCtx.provider === ANTHROPIC
+    ) {
+      const translated = await maybeTranslateAnthropicInBandError(response);
+      // The translation reads from response.body, which locks it. Logging
+      // middleware (middlewares/portkey/index.ts) calls clone() on
+      // requestOptions[].response, and that pointer was assigned to the
+      // upstream response before adaptResponse ran. Update it to the
+      // translated response so the clone targets a fresh, unlocked body.
+      // We assign the same Response (no .clone() here) — calling clone()
+      // would materialize Hono's Response2 cache prematurely and break the
+      // socket write. Both consumers (middleware logging and Hono socket
+      // write) go through the same Response2 proxy, which lazily tees on
+      // first body access.
+      if (translated !== response) {
+        const reqOptions = c.get('requestOptions');
+        if (reqOptions?.length) {
+          const lastOption = reqOptions[reqOptions.length - 1];
+          lastOption.response = translated;
+        }
+      }
+      return translated;
+    }
+    return response;
+  }
 
   const contentType = response.headers.get('content-type') || '';
 

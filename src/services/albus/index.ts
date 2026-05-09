@@ -3,6 +3,7 @@ import {
   AtomicCounterTypes,
   AtomicKeyTypes,
   CacheKeyTypes,
+  EntityStatus,
   PORTKEY_HEADER_KEYS,
 } from '../../middlewares/portkey/globals';
 import { generateV2CacheKey } from '../../utils/cacheKey';
@@ -12,12 +13,83 @@ import { externalServiceFetch, internalServiceFetch } from '../../utils/fetch';
 import { Environment } from '../../utils/env';
 import { trackPromptCacheKey } from '../../utils/cacheKeyTracker';
 import { requestCache } from '../cache/cacheService';
-import { fetchOrganisationProviderFromSlugFromFile } from './configFile';
+import {
+  fetchOrganisationDetailsFromFile,
+  fetchOrganisationConfigFromSlugFromFile,
+  fetchOrganisationIntegrationsFromFile,
+  fetchOrganisationProviderFromSlugFromFile,
+} from './configFile';
 import { computeSHA256 } from '../../utils';
+import { readFile } from 'fs/promises';
+import { homedir } from 'os';
+import { AUTH_SCOPES } from '../../globals';
 
 const isPrivateDeployment = Environment({}).PRIVATE_DEPLOYMENT === 'ON';
 const isLocalConfigEnabled =
   Environment({}).FETCH_SETTINGS_FROM_FILE === 'true';
+const localApiKeyScopes = [AUTH_SCOPES.COMPLETIONS.WRITE];
+
+const resolveLocalApiKey = async () => {
+  const envLocalApiKey = Environment({}).PORTKEY_LOCAL_API_KEY;
+  if (envLocalApiKey) {
+    return envLocalApiKey;
+  }
+
+  try {
+    const localApiKeyPath = `${homedir()}/.local/state/portkey/local-api-key`;
+    const fileContents = await readFile(localApiKeyPath, 'utf-8');
+    const localApiKey = fileContents.trim();
+    return localApiKey || null;
+  } catch {
+    return null;
+  }
+};
+
+const buildLocalApiKeyDetails = async (apiKey: string) => {
+  const localApiKey = await resolveLocalApiKey();
+  if (!localApiKey || localApiKey !== apiKey) {
+    return null;
+  }
+
+  const organisationDetails = await fetchOrganisationDetailsFromFile();
+  const workspaceDetails = {
+    id: organisationDetails.workspaceDetails?.id || organisationDetails.id,
+    slug: organisationDetails.workspaceDetails?.slug || 'local',
+    defaults: organisationDetails.workspaceDetails?.defaults || {},
+    usage_limits: organisationDetails.workspaceDetails?.usage_limits || [],
+    rate_limits: organisationDetails.workspaceDetails?.rate_limits || [],
+    status: organisationDetails.workspaceDetails?.status || EntityStatus.ACTIVE,
+    policies: organisationDetails.workspaceDetails?.policies || {
+      usage_limits: [],
+      rate_limits: [],
+    },
+  } satisfies WorkspaceDetails;
+
+  return {
+    organisation_details: {
+      organisation_id: organisationDetails.id,
+      owner_id: null,
+      name: organisationDetails.name,
+      settings: organisationDetails.settings,
+      enterprise_settings: organisationDetails.enterpriseSettings || null,
+      defaults: organisationDetails.defaults,
+      is_first_generation_done: true,
+    },
+    api_key_details: {
+      id: apiKey,
+      key: apiKey,
+      scopes: localApiKeyScopes,
+      defaults: {},
+      expires_at: undefined,
+      usage_limits: [],
+      rate_limits: [],
+      status: EntityStatus.ACTIVE,
+      system_defaults: {},
+      user_id: undefined,
+    },
+    workspace_details: workspaceDetails,
+  };
+};
 
 /**
  * Asynchronously fetch data from Albus.
@@ -62,6 +134,10 @@ export const fetchApiKeyDetails = async (
    *          if not found
    *              if the albus call returns null, return null
    */
+
+  if (isLocalConfigEnabled) {
+    return buildLocalApiKeyDetails(apiKey);
+  }
 
   let cacheKey;
   let sha1Key = apiKey;
@@ -270,6 +346,10 @@ export const fetchOrganisationConfig = async (
   workspaceDetails: WorkspaceDetails,
   configSlug: string
 ) => {
+  if (isLocalConfigEnabled) {
+    return fetchOrganisationConfigFromSlugFromFile(configSlug);
+  }
+
   const cacheKey = generateV2CacheKey({
     organisationId,
     workspaceId: workspaceDetails.id,
@@ -322,6 +402,10 @@ export const fetchOrganisationPrompt = async (
   promptSlug: string,
   isCacheRefreshEnabled: boolean
 ) => {
+  if (isLocalConfigEnabled) {
+    return null;
+  }
+
   //check in KV cache, return if found
   const cacheKey = generateV2CacheKey({
     organisationId,
@@ -370,6 +454,10 @@ export const fetchOrganisationPromptPartial = async (
   promptPartialSlug: string,
   isCacheRefreshEnabled: boolean
 ) => {
+  if (isLocalConfigEnabled) {
+    return null;
+  }
+
   //check in KV cache, return if found
   const cacheKey = generateV2CacheKey({
     organisationId,
@@ -496,6 +584,10 @@ export async function resyncOrganisationData({
   markFirstGenerationDone?: boolean;
   verificationCode?: string;
 }) {
+  if (isLocalConfigEnabled) {
+    return true;
+  }
+
   const path = `${Environment(env).ALBUS_BASEPATH}/v1/organisation/${organisationId}/resync`;
   const options: RequestInit = {
     method: 'POST',
@@ -539,6 +631,10 @@ export const fetchOrganisationGuardrail = async (
   guardrailSlug: string,
   isCacheRefreshEnabled: boolean
 ) => {
+  if (isLocalConfigEnabled) {
+    return null;
+  }
+
   //check in KV cache, return if found
   const cacheKey = generateV2CacheKey({
     organisationId: orgId,
@@ -584,6 +680,11 @@ export const fetchOrganisationIntegrations = async (
   apiKey: string,
   isCacheRefreshEnabled: boolean
 ) => {
+  if (isLocalConfigEnabled) {
+    const integrations = await fetchOrganisationIntegrationsFromFile();
+    return integrations;
+  }
+
   //check in KV cache, return if found
   const cacheKey = generateV2CacheKey({
     organisationId: orgId,

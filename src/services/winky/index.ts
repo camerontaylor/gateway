@@ -143,8 +143,15 @@ export async function uploadToLogStore(
   overrideLogUsage?: boolean
 ) {
   let isCustomLog = false;
+  const isLocalConfigEnabled =
+    Environment(env).FETCH_SETTINGS_FROM_FILE === 'true';
 
   if (type === 'hookResults') {
+    if (isLocalConfigEnabled) {
+      return isServiceRequest
+        ? new Response('ok', { status: 200 })
+        : new Response('Unauthorized request', { status: 401 });
+    }
     return isServiceRequest
       ? hookResultsLogHandler(
           env,
@@ -156,9 +163,18 @@ export async function uploadToLogStore(
   }
 
   if (type === 'mcp') {
+    if (isLocalConfigEnabled) {
+      return isServiceRequest
+        ? new Response('ok', { status: 200 })
+        : new Response('Unauthorized request', { status: 401 });
+    }
     return isServiceRequest
       ? mcpLogHandler(env, requestBody)
       : new Response('Unauthorized request', { status: 401 });
+  }
+
+  if (isLocalConfigEnabled) {
+    return new Response('ok', { status: 200 });
   }
 
   if (req) {
@@ -1508,6 +1524,9 @@ export async function uploadLogToAnalyticsStore(
   analyticsObjects: any[],
   analyticOptions: AnalyticsOptions
 ) {
+  if (Environment(env).FETCH_SETTINGS_FROM_FILE === 'true') {
+    return true;
+  }
   if (runtime === 'workerd' && env.clickhouseQ) {
     await env.clickhouseQ.send(
       {
@@ -1539,6 +1558,9 @@ export async function uploadLogToLogStore(
   logOptions: LogOptions,
   logStoreApmOptions: LogStoreApmOptions
 ) {
+  if (Environment(env).FETCH_SETTINGS_FROM_FILE === 'true') {
+    return true;
+  }
   //default to Control Plane
   const logStore = Environment(env).LOG_STORE || LOG_STORES.CONTROL_PLANE;
 

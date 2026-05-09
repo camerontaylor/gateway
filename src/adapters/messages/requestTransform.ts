@@ -97,6 +97,12 @@ export function transformMessagesToChatCompletions(req: any): Params {
     }
   }
 
+  if (req.provider != null) result.provider = req.provider;
+  if (req.models != null) result.models = req.models;
+  if (req.reasoning != null) result.reasoning = req.reasoning;
+  if (req.usage != null) result.usage = req.usage;
+  if (req.transforms != null) result.transforms = req.transforms;
+
   return result;
 }
 

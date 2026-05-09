@@ -4,7 +4,7 @@ export const defaultOrganisationDetails = {
   id: '00000000-0000-0000-0000-000000000000',
   name: 'Portkey self hosted',
   settings: {
-    debug_log: 1,
+    debug_log: 0,
     is_virtual_key_limit_enabled: 1,
     allowed_guardrails: ['BASIC', 'PARTNER', 'PRO'],
   },

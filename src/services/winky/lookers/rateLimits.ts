@@ -9,6 +9,7 @@ import {
   AnalyticsLogObject,
   VirtualKeyDetails,
 } from '../../../middlewares/portkey/types';
+import { Environment } from '../../../utils/env';
 
 export async function handlePostRequestRateLimits(
   env: Record<string, any>,
@@ -16,6 +17,7 @@ export async function handlePostRequestRateLimits(
   chLogObject: AnalyticsLogObject,
   logUsage: boolean
 ) {
+  if (Environment(env).FETCH_SETTINGS_FROM_FILE === 'true') return;
   try {
     const isCacheHit = ['HIT', 'SEMANTIC HIT'].includes(
       chLogObject.cache_status.value as string
