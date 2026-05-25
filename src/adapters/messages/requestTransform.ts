@@ -7,6 +7,27 @@
 
 import { Params, Message, ContentType } from '../../types/requestBody';
 
+const unsupportedContentBlockTypes = new Set(['tool_reference']);
+
+function sanitizeUnsupportedContentBlocks(content: any): any {
+  if (!Array.isArray(content)) {
+    return content;
+  }
+
+  return content
+    .filter((block) => !unsupportedContentBlockTypes.has(block?.type))
+    .map((block) => {
+      if (Array.isArray(block?.content)) {
+        return {
+          ...block,
+          content: sanitizeUnsupportedContentBlocks(block.content),
+        };
+      }
+
+      return block;
+    });
+}
+
 /**
  * Transform Anthropic Messages API request to Chat Completions format
  */
@@ -154,16 +175,25 @@ function transformMessage(msg: any): Message | Message[] | null {
         }
         break;
 
-      case 'tool_result':
+      case 'tool_result': {
         // Tool results become separate messages with role: tool
+        const sanitizedContent = sanitizeUnsupportedContentBlocks(
+          block.content
+        );
         toolResults.push({
           role: 'tool',
           tool_call_id: block.tool_use_id || '',
           content:
-            typeof block.content === 'string'
-              ? block.content
-              : JSON.stringify(block.content),
+            typeof sanitizedContent === 'string'
+              ? sanitizedContent
+              : JSON.stringify(sanitizedContent),
         });
+        break;
+      }
+
+      case 'tool_reference':
+        // Anthropic-only transport block emitted by ToolSearch; non-native
+        // providers cannot accept it as a normal content chunk.
         break;
     }
   }

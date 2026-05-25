@@ -1,4 +1,67 @@
+import { Params } from '../../types/requestBody';
 import { ParameterConfig, ProviderConfig } from '../types';
+
+const unsupportedForwardedContentBlockTypes = new Set(['tool_reference']);
+
+/**
+ * Claude Code can persist Anthropic-only transport blocks (for example
+ * ToolSearch `tool_reference` blocks) into the conversation history. Several
+ * Anthropic-compatible providers reject those blocks before generation, so the
+ * gateway removes only the known transport-only block type while preserving all
+ * normal text/media/tool blocks.
+ */
+export const sanitizeAnthropicContentBlocks = (content: unknown): unknown => {
+  if (!Array.isArray(content)) {
+    return content;
+  }
+
+  return content.flatMap((block) => {
+    if (!block || typeof block !== 'object') {
+      return [block];
+    }
+
+    const typedBlock = block as Record<string, unknown>;
+    if (
+      typeof typedBlock.type === 'string' &&
+      unsupportedForwardedContentBlockTypes.has(typedBlock.type)
+    ) {
+      return [];
+    }
+
+    if (Array.isArray(typedBlock.content)) {
+      return [
+        {
+          ...typedBlock,
+          content: sanitizeAnthropicContentBlocks(typedBlock.content),
+        },
+      ];
+    }
+
+    return [block];
+  });
+};
+
+export const sanitizeAnthropicMessages = (messages: unknown): unknown => {
+  if (!Array.isArray(messages)) {
+    return messages;
+  }
+
+  return messages.map((message) => {
+    if (!message || typeof message !== 'object') {
+      return message;
+    }
+
+    const typedMessage = message as Record<string, unknown>;
+    if (!Array.isArray(typedMessage.content)) {
+      return message;
+    }
+
+    return {
+      ...typedMessage,
+      content: sanitizeAnthropicContentBlocks(typedMessage.content),
+    };
+  });
+};
 
 export const messagesBaseConfig: ProviderConfig = {
   model: {
@@ -8,6 +71,7 @@ export const messagesBaseConfig: ProviderConfig = {
   messages: {
     param: 'messages',
     required: true,
+    transform: (params: Params) => sanitizeAnthropicMessages(params.messages),
   },
   max_tokens: {
     param: 'max_tokens',

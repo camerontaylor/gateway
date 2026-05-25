@@ -23,6 +23,7 @@ import {
   transformFinishReason,
 } from '../utils';
 import { AnthropicErrorResponseTransform } from './utils';
+import { sanitizeAnthropicContentBlocks } from '../anthropic-base/messages';
 
 // TODO: this configuration does not enforce the maximum token limit for the input parameter. If you want to enforce this, you might need to add a custom validation function or a max property to the ParameterConfig interface, and then use it in the input configuration. However, this might be complex because the token count is not a simple length check, but depends on the specific tokenization method used by the model.
 
@@ -147,6 +148,12 @@ const transformAssistantMessage = (msg: Message): AnthropicMessage => {
   let inputContent: ContentType[] | string | undefined =
     msg.content_blocks ?? msg.content;
   const containsToolCalls = msg.tool_calls && msg.tool_calls.length;
+
+  if (Array.isArray(inputContent)) {
+    inputContent = sanitizeAnthropicContentBlocks(
+      inputContent
+    ) as ContentType[];
+  }
 
   if (inputContent && typeof inputContent === 'string') {
     transformedContent.push({

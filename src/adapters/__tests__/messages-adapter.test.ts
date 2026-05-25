@@ -88,6 +88,39 @@ const fixtures = {
       max_tokens: 100,
     }),
 
+    withToolReference: () => ({
+      model: 'gpt-4',
+      messages: [
+        {
+          role: 'user' as const,
+          content: [
+            {
+              type: 'tool_reference',
+              tool_name: 'mcp__plugin_engram_engram__mem_save',
+            },
+            { type: 'text', text: 'Continue.' },
+          ],
+        },
+        {
+          role: 'user' as const,
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'toolu_123',
+              content: [
+                {
+                  type: 'tool_reference',
+                  tool_name: 'mcp__plugin_engram_engram__mem_save',
+                },
+                { type: 'text', text: 'loaded' },
+              ],
+            },
+          ],
+        },
+      ],
+      max_tokens: 100,
+    }),
+
     multimodal: () => ({
       model: 'gpt-4-vision',
       messages: [
@@ -275,6 +308,20 @@ describe('Messages → Chat Completions Request Transform', () => {
     expect(result.messages).toHaveLength(3);
     expect(result.messages![1].tool_calls).toBeDefined();
     expect(result.messages![2].role).toBe('tool');
+  });
+
+  test('removes ToolSearch tool_reference blocks before chat completions fallback', () => {
+    const result = transformMessagesToChatCompletions(
+      fixtures.requests.withToolReference()
+    );
+
+    expect(JSON.stringify(result.messages)).not.toContain('tool_reference');
+    expect(result.messages![0].content).toBe('Continue.');
+    expect(result.messages![1]).toMatchObject({
+      role: 'tool',
+      tool_call_id: 'toolu_123',
+      content: JSON.stringify([{ type: 'text', text: 'loaded' }]),
+    });
   });
 
   test('transforms multimodal content correctly', () => {
