@@ -4,3 +4,5 @@ build
 .wrangler
 public
 wrangler.toml
+.omc
+.omx
