@@ -1,5 +1,9 @@
 import { CEREBRAS } from '../../globals';
-import { chatCompleteParams, responseTransformers } from '../open-ai-base';
+import {
+  chatCompleteParams,
+  completeParams,
+  responseTransformers,
+} from '../open-ai-base';
 import { ProviderConfigs } from '../types';
 import { cerebrasAPIConfig } from './api';
 import { cerebrasAIConfig } from './pricing';
@@ -13,9 +17,17 @@ export const cerebrasProviderAPIConfig: ProviderConfigs = {
     'parallel_tool_calls',
     'service_tier',
   ]),
+  complete: completeParams([
+    'frequency_penalty',
+    'presence_penalty',
+    'logit_bias',
+    'best_of',
+    'n',
+  ]),
   api: cerebrasAPIConfig,
   responseTransforms: responseTransformers(CEREBRAS, {
     chatComplete: true,
+    complete: true,
   }),
   pricing: cerebrasAIConfig,
 };

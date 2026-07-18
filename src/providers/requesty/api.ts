@@ -1,11 +1,11 @@
 import { POWERED_BY } from '../../globals';
 import { ProviderAPIConfig } from '../types';
 
-const OpenrouterAPIConfig: ProviderAPIConfig = {
-  getBaseURL: () => 'https://openrouter.ai/api',
+const RequestyAPIConfig: ProviderAPIConfig = {
+  getBaseURL: () => 'https://router.requesty.ai',
   headers: ({ providerOptions }) => {
     return {
-      Authorization: `Bearer ${providerOptions.apiKey}`, // https://openrouter.ai/keys
+      Authorization: `Bearer ${providerOptions.apiKey}`, // https://app.requesty.ai/api-keys
       'HTTP-Referer': 'https://portkey.ai/',
       'X-Title': POWERED_BY,
     };
@@ -14,14 +14,10 @@ const OpenrouterAPIConfig: ProviderAPIConfig = {
     switch (fn) {
       case 'chatComplete':
         return '/v1/chat/completions';
-      case 'imageGenerate':
-        return '/v1/images';
-      case 'createModelResponse':
-        return '/v1/responses';
       default:
         return '';
     }
   },
 };
 
-export default OpenrouterAPIConfig;
+export default RequestyAPIConfig;
